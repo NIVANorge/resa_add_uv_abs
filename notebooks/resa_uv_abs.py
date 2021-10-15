@@ -6,34 +6,6 @@ from pathlib import Path
 import pandas as pd
 
 
-def read_blank(blank_path):
-    """Check that a blank file exists and read it to a dataframe.
-
-    Args:
-        blank_path: Str. Path to blank file
-
-    Returns:
-        Dataframe.
-    """
-    assert os.path.isfile(blank_path), f"Blank file not found at '{blank_path}'."
-
-    blank_df = pd.read_csv(
-        blank_path,
-        delim_whitespace=True,
-        skiprows=86,
-        header=None,
-        names=["wavelength", "blank_value"],
-        index_col=0,
-    )
-    blank_df.index = blank_df.index.astype(int)
-
-    assert (
-        len(blank_df) == 701
-    ), f"Blank file '{blank_path}' contains {len(blank_df)} rows (expected 701)."
-
-    return blank_df
-
-
 def get_year(fpath, line_num=4):
     """Get year from a raw sample file.
 
@@ -93,11 +65,11 @@ def correct_values(raw_abs_df, blank_df, cuvette_len_cm, dilution, ws_id, meth_i
     Returns:
         Dataframe.
     """
-    df = raw_abs_df.join(blank_df, how="inner")
+    df = raw_abs_df.join(blank_df, how="inner", rsuffix="_blank")
 
     assert len(df) == 701, f"Joined dataframe contains {len(df)} rows (expected 701)."
 
-    df["value"] = (df["value"] - df["blank_value"]) * dilution / cuvette_len_cm
+    df["value"] = (df["value"] - df["value_blank"]) * dilution / cuvette_len_cm
     df = df[["value"]].reset_index()
     df["water_sample_id"] = ws_id
     df["method_id"] = meth_id
