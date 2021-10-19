@@ -1,25 +1,42 @@
 import linecache
 import os
 import shutil
+from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
-def get_year(fpath, line_num=4):
-    """Get year from a raw sample file.
+def get_analysis_datetime(fpath):
+    """Get the date and time of an analysis from a raw sample or blank file.
 
     Args:
         fpath:    Str. Path to raw file
-        line_num: Int. Line to read containing date in format 'yy/mm/dd'
 
     Returns:
-        Int. Year when analysis was conducted.
+        Datetime object when analysis was conducted.
     """
-    line = linecache.getline(fpath, line_num)
-    year = int(line[:2]) + 2000
+    dt_tm = linecache.getline(fpath, 6) + " " + linecache.getline(fpath, 7)[:8]
+    dt_tm = datetime.strptime(dt_tm, "%y/%m/%d %H:%M:%S")
 
-    return year
+    return dt_tm
+
+
+def get_dilution(serial_no, year):
+    """Get the dilution factor from Labware using the Labware text ID.
+
+    Args:
+        serial_no: Str. Zero-padded 5-digit Labware serial number.
+                   e.g. the xxxxx part of 'NR-2019-xxxxx'
+        year:      Int. Year in which analysis was run
+
+    Returns:
+        Int. Dilution factor for sample.
+    """
+    lw_txt_id = f"NR-{year}-{serial_no}"
+
+    return 1
 
 
 def read_uv_abs(fpath):
@@ -46,6 +63,52 @@ def read_uv_abs(fpath):
     assert len(df) == 701, f"File '{fpath}' contains {len(df)} rows (expected 701)."
 
     return df
+
+
+def assign_blanks(flist, blank_list):
+    """Determine which blank file to use for each result file. An analysis will begin
+       with a blank file (usually called 'BLANK.SP'), followed by several result files,
+       then another blank file (usually 'BL.SP') and some more samples. The first blank
+       file applies to the first set of results and the second to the second set of
+       results. All the files include date & time stamps. This function uses these to
+       determine which result files should use which blanks.
+
+    Args:
+        flist:      List of Str. List of paths to raw result files
+        blank_list: List of Str. List of paths to blank files
+
+    Returns:
+        Dataframe with index equal to 'fpath' and columns 'datetime' and 'blank_path'.
+    """
+    # Read datetimes from result files
+    data = {
+        "fpath": flist,
+        "datetime": [get_analysis_datetime(fpath) for fpath in flist],
+    }
+    fpath_df = pd.DataFrame(data).sort_values("datetime", ascending=True)
+
+    # Read datetimes from blank files
+    data = {
+        "blank_path": blank_list,
+        "datetime": [get_analysis_datetime(blank_path) for blank_path in blank_list],
+    }
+    blank_path_df = pd.DataFrame(data).sort_values("datetime", ascending=True)
+
+    # Assign blanks to result files
+    fpath_df["blank_path"] = pd.cut(
+        fpath_df["datetime"],
+        bins=blank_path_df["datetime"].tolist() + [datetime(2100, 1, 1)],
+        labels=blank_path_df["blank_path"],
+    )
+
+    if pd.isna(fpath_df).sum().sum() > 0:
+        print("Cannot assign blanks for all files:")
+        print(fpath_df)
+        raise ValueError("Cannot assign blanks.")
+
+    fpath_df.set_index("fpath", inplace=True)
+
+    return fpath_df
 
 
 def correct_values(raw_abs_df, blank_df, cuvette_len_cm, dilution, ws_id, meth_id):
