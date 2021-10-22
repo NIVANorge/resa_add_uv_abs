@@ -1,0 +1,12 @@
+name: resa2_uvabs
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - cx_Oracle
+  - git
+  - numpy
+  - pandas
+  - premailer
+  - sqlalchemy
+  - yagmail
