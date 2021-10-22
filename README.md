@@ -108,4 +108,4 @@ Please pay particular attention to the following log file messages:
 As noted in the section above, each sample that is successfully processed is moved to a subfolder named `uploaded`. For example, the file `.../AB211018/09562.SP` will be located at `.../AB211018/uploaded/09562.SP` once processing is complete. **Any files remaining long-term in the original top-level folder are therefore causing problems and should be investigated**. These files will be highlighted in the log files by one of the warning or error messages listed above.
 
 
-{% include lib/mathjax.html %}
+{% include mathjax.html %}
