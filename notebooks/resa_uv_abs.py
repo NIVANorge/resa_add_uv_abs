@@ -1,11 +1,37 @@
+import configparser
+import getpass
 import linecache
+import logging
 import os
 import shutil
 from datetime import datetime
+from glob import glob
 from pathlib import Path
 
+import cx_Oracle
 import numpy as np
 import pandas as pd
+import yagmail
+from sqlalchemy import create_engine
+
+
+def connect_to_nivabase():
+    """Connect to the NIVABASE.
+    Args:
+        None.
+
+    Returns:
+        SQLAlchemy database engine.
+    """
+    user = getpass.getpass(prompt="Username: ")
+    pw = getpass.getpass(prompt="Password: ")
+    conn_str = f"oracle+cx_oracle://{user}:{pw}@nivabase.niva.no:1521/nivabase"
+
+    engine = create_engine(conn_str)
+    conn = engine.connect()
+    print("Connection successful.")
+
+    return engine
 
 
 def get_analysis_datetime(fpath):
@@ -39,6 +65,33 @@ def get_dilution(serial_no, year):
     return 1
 
 
+def get_water_sample_id(serial_no, year, engine):
+    """Find the RESA2 water sample ID from the Labware text ID.
+
+    Args:
+        serial_no: Str. Zero-padded 5-digit Labware serial number.
+                   e.g. the xxxxx part of 'NR-2019-xxxxx'
+        year:      Int. Year in which analysis was run
+        engine:    Obj. Active database connection object with access to
+                   Nivabasen
+
+    Returns:
+        None or Int. Resa2 water sample ID (if found).
+    """
+    lw_txt_id = f"NR-{year}-{serial_no}"
+    sql = "SELECT water_sample_id FROM resa2.labware_wsid WHERE labware_text_id=:lw_txt_id"
+    df = pd.read_sql(sql, engine, params={"lw_txt_id": lw_txt_id})
+
+    if len(df) == 0:
+        return None
+    elif len(df) == 1:
+        ws_id = df["water_sample_id"].iloc[0]
+        return int(ws_id)
+    else:
+        msg = f"ERROR: Found multiple RESA2 water sample IDs for {lw_txt_id}."
+        raise ValueError(msg)
+
+
 def read_uv_abs(fpath):
     """Read a raw UV absorbance file.
 
@@ -48,8 +101,6 @@ def read_uv_abs(fpath):
     Returns:
         Dataframe.
     """
-    assert os.path.isfile(fpath), f"File not found at '{fpath}'."
-
     df = pd.read_csv(
         fpath,
         delim_whitespace=True,
@@ -60,7 +111,9 @@ def read_uv_abs(fpath):
     )
     df.index = df.index.astype(int)
 
-    assert len(df) == 701, f"File '{fpath}' contains {len(df)} rows (expected 701)."
+    if len(df) != 701:
+        msg = f"ERROR: File '{fpath}' contains {len(df)} rows (expected 701)."
+        raise ValueError(msg)
 
     return df
 
@@ -102,9 +155,8 @@ def assign_blanks(flist, blank_list):
     )
 
     if pd.isna(fpath_df).sum().sum() > 0:
-        print("Cannot assign blanks for all files:")
-        print(fpath_df)
-        raise ValueError("Cannot assign blanks.")
+        msg = f"ERROR: Cannot assign blanks for all files:\n\n{fpath_df.to_string()}"
+        raise LookupError(msg)
 
     fpath_df.set_index("fpath", inplace=True)
 
@@ -130,7 +182,9 @@ def correct_values(raw_abs_df, blank_df, cuvette_len_cm, dilution, ws_id, meth_i
     """
     df = raw_abs_df.join(blank_df, how="inner", rsuffix="_blank")
 
-    assert len(df) == 701, f"Joined dataframe contains {len(df)} rows (expected 701)."
+    if len(df) != 701:
+        msg = f"ERROR: Joined dataframe contains {len(df)} rows (expected 701)."
+        raise ValueError(msg)
 
     df["value"] = (df["value"] - df["value_blank"]) * dilution / cuvette_len_cm
     df = df[["value"]].reset_index()
@@ -138,32 +192,6 @@ def correct_values(raw_abs_df, blank_df, cuvette_len_cm, dilution, ws_id, meth_i
     df["method_id"] = meth_id
 
     return df
-
-
-def get_water_sample_id(serial_no, year, engine):
-    """Find the RESA2 water sample ID from the Labware text ID.
-
-    Args:
-        serial_no: Str. Zero-padded 5-digit Labware serial number.
-                   e.g. the xxxxx part of 'NR-2019-xxxxx'
-        year:      Int. Year in which analysis was run
-        engine:    Obj. Active database connection object with access to
-                   Nivabasen
-
-    Returns:
-        None or Int. Resa2 water sample ID (if found).
-    """
-    lw_txt_id = f"NR-{year}-{serial_no}"
-    sql = "SELECT water_sample_id FROM resa2.labware_wsid WHERE labware_text_id=:lw_txt_id"
-    df = pd.read_sql(sql, engine, params={"lw_txt_id": lw_txt_id})
-
-    if len(df) == 0:
-        return None
-    elif len(df) == 1:
-        ws_id = df["water_sample_id"].iloc[0]
-        return int(ws_id)
-    else:
-        raise ValueError(f"Found multiple RESA2 water sample IDs for {lw_txt_id}.")
 
 
 def add_to_resa(
@@ -200,10 +228,6 @@ def add_to_resa(
     Returns:
         None. Values are added to RESA.
     """
-    assert (
-        len(df["water_sample_id"].unique()) == 1
-    ), "Dataframe contains results for more than one sample."
-
     ws_id = int(df["water_sample_id"].iloc[0])
 
     # Check if values already exist
@@ -229,16 +253,17 @@ def add_to_resa(
         log_spectra_uploaded(
             fold, ws_id, year, serial_no, blank_file, dilution, cuvette_len_cm, engine
         )
-
-        print(
-            f"Successfully uploaded new data for NR-{year}-{serial_no} (water sample ID {ws_id})."
-        )
+        msg = f"Successfully uploaded new data for NR-{year}-{serial_no} (water sample ID {ws_id})."
+        print(msg)
+        logging.info(msg)
 
     else:
-        print(
+        msg = (
             f"Skipping upload for NR-{year}-{serial_no} (water sample ID {ws_id}). "
             "Values already exist (use 'force_update=True' to reload)."
         )
+        print(msg)
+        logging.info(msg)
 
 
 def log_spectra_uploaded(
@@ -289,3 +314,120 @@ def log_spectra_uploaded(
         "(:1, :2, :3, :4, :5, :6, :7, :8, :9)"
     )
     engine.execute(sql, data)
+
+
+def send_email(to_list, subject, message, attach_list, auth_path=".auth"):
+    """Send an e-mail from resa2.uvabs@gmail.com with the log file as an
+       attachment.
+
+       The authentication file is plain text and should have the format
+
+            [Auth]
+            email_user = resa2.uvabs
+            email_pw = password
+
+    Args:
+        to_list:     List of Str. E-mail addresses to send to
+        subject:     Str. E-mail subject
+        message:     Str. E-mail body text
+        attach_list: List of Str. List file paths for attachments
+        auth_path:   Str. Path to authentication file containing username and
+                     password for resa2.uvabs@gmail.com
+
+    Returns:
+        None. E-mail is sent.
+    """
+    config = configparser.RawConfigParser()
+    config.read(auth_path)
+    username = config.get("Auth", "email_user")
+    password = config.get("Auth", "email_pw")
+
+    yag = yagmail.SMTP(username, password)
+    yag.send(to=to_list, subject=subject, contents=message, attachments=attach_list)
+
+
+def main(
+    uv_data_fold=r"../../test_data",
+    force_update=False,
+    cuvette_len_cm=5,
+    meth_id=10666,
+    log_fold=r"../logs/",
+):
+    """Main function for processing UV absorbance data."""
+    log_date = datetime.today().strftime("%Y-%m-%d-%H-%M")
+    log_file = os.path.join(log_fold, f"resa2_uvabs_log_{log_date}.txt")
+    logging.basicConfig(
+        filename=log_file, filemode="w", level=logging.DEBUG, format="%(message)s"
+    )
+
+    try:
+        engine = connect_to_nivabase()
+
+        # Relevant folder names begin with "AB"
+        folders = glob(f"{uv_data_fold}/*")
+        folders = [fold for fold in folders if os.path.split(fold)[1][:2] == "AB"]
+
+        for fold in folders:
+            blank_list = glob(f"{fold}/BL*.SP")
+            flist = glob(f"{fold}/*.SP")
+            flist = [fpath for fpath in flist if fpath not in blank_list]
+
+            if (len(flist) > 0) and (len(blank_list) > 0):
+                header = "############################################################################"
+                msg = f"{header}\n{fold}\n{header}"
+                print(msg)
+                logging.info(msg)
+
+                res_blank_df = assign_blanks(flist, blank_list)
+
+                for fpath in flist:
+                    serial_no = os.path.split(fpath)[1][:-3]
+                    year = get_analysis_datetime(fpath).year
+                    dilution = get_dilution(serial_no, year)
+                    ws_id = get_water_sample_id(serial_no, year, engine)
+
+                    if ws_id is None:
+                        msg = (
+                            f"Skipping upload for NR-{year}-{serial_no}. "
+                            "Could not identify water sample in RESA2."
+                        )
+                        print(msg)
+                        logging.info(msg)
+                    else:
+                        blank_path = res_blank_df.loc[fpath, "blank_path"]
+                        blank_file = os.path.split(blank_path)[1]
+                        df = read_uv_abs(fpath)
+                        blank_df = read_uv_abs(blank_path)
+                        df = correct_values(
+                            df, blank_df, cuvette_len_cm, dilution, ws_id, meth_id
+                        )
+                        add_to_resa(
+                            df,
+                            fold,
+                            year,
+                            serial_no,
+                            blank_file,
+                            dilution,
+                            cuvette_len_cm,
+                            engine,
+                            force_update=force_update,
+                        )
+    except Exception as e:
+        print(e)
+        logging.error(e)
+
+    logging.shutdown()
+
+    # Send e-mail report
+    to_list = ["james.sample@niva.no"]
+    subject = "RESA2 UV absorbance report"
+    message = (
+        f"Please find attached the log file for the latest RESA2 "
+        f"UV absorbance data upload ({log_date})."
+    )
+    attach_list = [log_file]
+    send_email(to_list, subject, message, attach_list)
+
+
+if __name__ == "__main__":
+    main()
