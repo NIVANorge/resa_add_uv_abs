@@ -106,3 +106,6 @@ Please pay particular attention to the following log file messages:
     *This is an error*. It will be followed by a table of result files for which blanks cannot be found. The most likely cause is that a blank sample was not run **before** the main set of samples. In this case, the folder should be manually checked to identify an appropriate blank (if present) or reanalysed if this is not possible. If a blank can be identified manually, it can be copied and the timestamp in the header adjusted so that it falls before the first true sample. The batch will then be processed successfully when the script next runs 
     
 As noted in the section above, each sample that is successfully processed is moved to a subfolder named `uploaded`. For example, the file `.../AB211018/09562.SP` will be located at `.../AB211018/uploaded/09562.SP` once processing is complete. **Any files remaining long-term in the original top-level folder are therefore causing problems and should be investigated**. These files will be highlighted in the log files by one of the warning or error messages listed above.
+
+
+{% include lib/mathjax.html %}
