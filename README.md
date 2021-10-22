@@ -2,9 +2,9 @@
 
 A temporary solution for processing UV absorbance data from NIVA Lab's spectrophotometer.
 
-The code here provides an alternative to Tore's old Access database (`ABSDATA_IMPORT.accdb`). This has previously been used to add absorbance data to RESA2, but it's fiddly and very slow.  The code in this repository should be faster & more efficient, and will hopefully provide an initial solution to a long-standing problem. A comparison of results from the old and new workflows is [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/compare_old_and_new_methods.ipynb).
+The code here provides an alternative to Tore's old Access database (`ABSDATA_IMPORT.accdb`). This has previously been used to add absorbance data to RESA2, but it's fiddly and very slow.  The code in this repository should be faster & more efficient, and will hopefully provide an initial solution to a long-standing problem. A comparison of results from the old and new workflows is [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/compare_old_and_new_methods.ipynb).
 
-The code is designed to run automatically as a "scheduled task" on a machine within the NIVA network (i.e. with direct access to Nivabasen). It can also be run manually via the notebook [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) for greater control, such as when investigating if/when the automatic upload fails for some reason.
+The code is designed to run automatically as a "scheduled task" on a machine within the NIVA network (i.e. with direct access to Nivabasen). It can also be run manually via the notebook [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) for greater control, such as when investigating if/when the automatic upload fails for some reason.
 
 ## Overview
 
@@ -28,11 +28,11 @@ After each analysis, Erling copies the `AB{yymmdd}` folders to `K:/Avdeling/412 
 
 Please note the following:
 
- * Folders must be named in the format `AB{yymmdd}` (e.g. `AB211018`) <br><br>
+ * Folders must be named in the format `AB{yymmdd}` (e.g. `AB211018`)
  
- * The first blank file must be run **before** the first set of samples. The code links blanks to samples based on the date and time of analysis recorded in the header of the output files. An error will be raised if there is no blank with a timestamp earlier than the first sample file <br><br>
+ * The first blank file must be run **before** the first set of samples. The code links blanks to samples based on the date and time of analysis recorded in the header of the output files. An error will be raised if there is no blank with a timestamp earlier than the first sample file
  
- * The blank and sample files must both contain data for **701 wavelengths**. The code will raise an error if either dataset is incomplete <br><br>
+ * The blank and sample files must both contain data for **701 wavelengths**. The code will raise an error if either dataset is incomplete
  
  * The code only considers files with a `.SP` extension. Any other files will be ignored
  
@@ -85,7 +85,7 @@ Sometimes samples are reanalysed, so results from the same sample can be provide
     
 and skip over the duplicated file. If you are sure the second set of values is correct (i.e. a reanalysis rather than any other error), the script can be run again manually with `force_update = True`. This will delete any existing values for this sample in the database and replace them with the new ones.
 
-Further details can be found in the notebook [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) and the code [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_uv_abs.py).
+Further details can be found in the notebook [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) and the code [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_uv_abs.py).
 
 ### For quality assurance
 
@@ -94,13 +94,13 @@ The log files described above provide more detailed status and error information
 Please pay particular attention to the following log file messages:
 
  1. `Skipping upload for NR-yyyy-xxxxx. Could not identify water sample in RESA2`<br> 
-    *This is just a warning, not an error*. This is expected for recently processed samples, where the water chemistry analysis has not yet been finalised by the lab. In this case, it is OK to simply wait and the sample should be processed as soon as an ID can be correctly identified. However, if this warning is being printed for old samples (i.e. long after other analyses on the same sample have finished), it should be investigated to determine the cause <br><br>
+    *This is just a warning, not an error*. This is expected for recently processed samples, where the water chemistry analysis has not yet been finalised by the lab. In this case, it is OK to simply wait and the sample should be processed as soon as an ID can be correctly identified. However, if this warning is being printed for old samples (i.e. long after other analyses on the same sample have finished), it should be investigated to determine the cause
     
  2. `Skipping upload for NR-yyyy-xxxxx (water sample ID xxxxxx). Values already exist (use 'force_update=True' to reload)`<br>
-     *This is a warning, not an error*. If this is a reanalysis, the more recent set of values should probably replace the first. In this case, the script can be re-run manually with `force_update=True` to update the values in the database (contact James Sample). Otherwise, there may be an error/conflict with sample IDs, which should be investigated <br><br>
+     *This is a warning, not an error*. If this is a reanalysis, the more recent set of values should probably replace the first. In this case, the script can be re-run manually with `force_update=True` to update the values in the database (contact James Sample). Otherwise, there may be an error/conflict with sample IDs, which should be investigated
      
  3. `ERROR: File '../../test_data/AByymmdd/xxxxx.SP' contains 699 rows (expected 701)`<br>
-    *This is an error*. The file should be checked and the sample reanalysed if necessary <br><br>
+    *This is an error*. The file should be checked and the sample reanalysed if necessary
     
  4. `ERROR: Cannot assign blanks for all files`<br>
     *This is an error*. It will be followed by a table of result files for which blanks cannot be found. The most likely cause is that a blank sample was not run **before** the main set of samples. In this case, the folder should be manually checked to identify an appropriate blank (if present) or reanalysed if this is not possible. If a blank can be identified manually, it can be copied and the timestamp in the header adjusted so that it falls before the first true sample. The batch will then be processed successfully when the script next runs 
