@@ -6,7 +6,7 @@ The code here provides an alternative to Tore's old Access database (`ABSDATA_IM
 
 The code is designed to run automatically as a "scheduled task" on a machine within the NIVA network (i.e. with direct access to Nivabasen). It can also be run manually via the notebook [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) for greater control, such as when investigating if/when the automatic upload fails for some reason.
 
-## Overview
+## 1. Overview
 
 UV absorbance analyses are conducted in batches, with one "blank"/calibration sample followed by a set of target samples. NIVA typically records absorbance for all integer wavelengths between 200 and 900 nm inclusive (i.e. 701 wavelengths per sample). Raw values from the target samples are corrected by subtracting the corresponding blank values. Corrections must also be made for dilution (e.g. where an unusually dark sample has been diluted before analysis) and cuvette length. The adjusted values to be uploaded to the database are calculated as:
 
@@ -16,9 +16,9 @@ where $$A^{\lambda}_{cor}$$ is the corrected value to be uploaded for wavelength
 
 The code in this repository reads the raw data, performs basic quality checking, calculates corrected values using the equation shown above, and uploads them to the RESA2 database. An e-mail is then automatically sent to selected recipients with a summary report listing the data uploaded and any issues requiring further attention.
 
-## Detailed workflow
+## 2. Detailed workflow
 
-### For the Lab
+### 2.1. For the Lab
 
 **The workflow outlined below must be followed carefully for the code in this repository to work**. 
 
@@ -36,9 +36,11 @@ Please note the following:
  
  * The code only considers files with a `.SP` extension. Any other files will be ignored
  
-### For Miljøinformatikk
+### 2.2. For Miljøinformatikk
 
-The code in this repository should be deployed on a server with direct access to Nivabasen and a reasonably fast connection to `K:`. Data are uploaded to `RESA2.ABSORBANCE_SPECTRAS` and logged in `RESA2.LOG_ABS_SPECTRA`. 
+#### 2.2.1. Overview
+
+The code in this repository should be deployed on a server with direct access to Nivabasen and a reasonably fast connection to `K:` (see *Installation*, below). Data are uploaded to `RESA2.ABSORBANCE_SPECTRAS` and logged in `RESA2.LOG_ABS_SPECTRA`. 
 
 In order for the upload to succeed, a valid water sample ID must already exist in RESA2 i.e. NIVALab must have already approved the general water chemistry analysis for the same sample being analysed on the spectrophotometer. The RESA2 water sample ID is found by matching the Labware text ID, which is constructed as `NR-{year}-{serial_no}`, where `year` is the year of analysis and `serial_no` is a zero-padded, five-digit code extracted from the filename (e.g. `09562.SP`). If the sample ID cannot be identified, a warning will be printed and the upload of data skipped until the next time the script runs (when it will try to identify the correct ID again).
 
@@ -87,7 +89,23 @@ and skip over the duplicated file. If you are sure the second set of values is c
 
 Further details can be found in the notebook [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) and the code [here](https://github.com/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_uv_abs.py).
 
-### For quality assurance
+#### 2.2.2. Installation
+
+ 1. The Oracle Client must be correctly installed on the machine. Note that you will need the 64-bit client for 64-bit Python, but the version typically installed by NIVA's Software Centre is 32-bit. If you need to install the 64-bit client without affecting any other Oracle clients already on the machine, download the **Instant Client Basic Lite Package (v19)** from [here](https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html) and unzip it to a suitable location on the system (e.g. `C:\oracle\instantclient_19_12`). You can then **uncomment the line in `upload_uv_abs.bat` that temporarily sets the path to the Instant Client**. See [here](https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html#installing-cx-oracle-on-windows) for more detailed instructions
+ 
+ 2. Download and install **Mambaforge** for your system from [here](https://github.com/conda-forge/miniforge). Make a note of the install path for later (the default when installing for "all users" should be `C:\ProgramData\mambaforge`)
+ 
+ 3. If Git is already installed on the system, clone the [resa_add_uv_abs repository](https://github.com/NIVANorge/resa_add_uv_abs). If Git is not installed, simply download the repository as a zip archive and extract it to a suitable location (Git will be installed in the following steps)
+ 
+ 4. Open the **Mambaforge prompt** (`Programs > Miniforge3 > Miniforge prompt (mambaforge`) and `cd` into the `resa_add_uv_abs` folder created in step 2
+ 
+ 5. Run `mamba env create -f environment.yml --force` to install the Python environment
+ 
+ 6. If Mambaforge was not installed in the default location in step 1, modify the part of the `upload_uv_abs.bat` that sets the path to Mamba to point to the correct location
+ 
+ 7. Create a **Scheduled Task** to run `upload_uv_abs.bat` at the desired frequency
+
+### 3. For quality assurance
 
 The log files described above provide more detailed status and error information than the previous Access database. The log files should be checked and issues followed-up and corrected as soon as possible. Once the result files are valid, the upload should take place successfully next time the script runs.
 
