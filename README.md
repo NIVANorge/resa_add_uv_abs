@@ -12,7 +12,7 @@ UV absorbance analyses are conducted in batches, with one "blank"/calibration sa
 
 $$A^{\lambda}_{cor} = \frac{D(A^{\lambda}_{raw} - A^{\lambda}_{blank})}{L}$$
 
-where $A^{\lambda}_{cor}$ is the corrected value to be uploaded for wavelength $\lambda$ (in units of absorbance/cm); $A^{\lambda}_{raw}$ and $A^{\lambda}_{blank}$ are the raw and calibration absorbances at wavelength $\lambda$, respectively; $D$ is the dimensionless dilution factor; and $L$ is the cuvette length in cm.
+where $$A^{\lambda}_{cor}$$ is the corrected value to be uploaded for wavelength $$\lambda$$ (in units of absorbance/cm); $$A^{\lambda}_{raw}$$ and $$A^{\lambda}_{blank}$$ are the raw and calibration absorbances at wavelength $$\lambda$$, respectively; $$D$$ is the dimensionless dilution factor; and $$L$$ is the cuvette length in cm.
 
 The code in this repository reads the raw data, performs basic quality checking, calculates corrected values using the equation shown above, and uploads them to the RESA2 database. An e-mail is then automatically sent to selected recipients with a summary report listing the data uploaded and any issues requiring further attention.
 
