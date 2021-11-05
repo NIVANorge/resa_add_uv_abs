@@ -1,8 +1,8 @@
 # Uploading UV absorbance data to RESA2
 
-A temporary solution for processing UV absorbance data from NIVA Lab's spectrophotometer.
+A temporary solution for processing UV absorbance data from NIVALab's spectrophotometer.
 
-The code here provides an alternative to Tore's old Access database (`ABSDATA_IMPORT.accdb`). This has previously been used to add absorbance data to RESA2, but it's fiddly and very slow.  The code in this repository should be faster & more efficient, and will hopefully provide an initial solution to a long-standing problem. A comparison of results from the old and new workflows is [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/compare_old_and_new_methods.ipynb).
+The code here provides an alternative to Tore's old Access database (`ABSDATA_IMPORT.accdb`). This has previously been used to add absorbance data to RESA2, but it's fiddly and slow. The code in this repository should be faster & more efficient, and will hopefully provide an initial solution to a long-standing problem. A comparison of results from the old and new workflows is [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/compare_old_and_new_methods.ipynb).
 
 The code is designed to run automatically as a "scheduled task" on a machine within the NIVA network (i.e. with direct access to Nivabasen). It can also be run manually via the notebook [here](https://nbviewer.org/github/NIVANorge/resa_add_uv_abs/blob/main/notebooks/resa_add_uv_abs.ipynb) for greater control, such as when investigating if/when the automatic upload fails for some reason.
 
@@ -91,17 +91,17 @@ Further details can be found in the notebook [here](https://nbviewer.org/github/
 
 #### 2.2.2. Installation
 
- 1. The Oracle Client must be correctly installed on the machine. Note that you will need the 64-bit client for 64-bit Python, but the version typically installed by NIVA's Software Centre is 32-bit. If you need to install the 64-bit client without affecting any other Oracle clients already on the machine, download the **Instant Client Basic Lite Package (v19)** from [here](https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html) and unzip it to a suitable location on the system (e.g. `C:\oracle\instantclient_19_12`). You can then **uncomment the line in `upload_uv_abs.bat` that temporarily sets the path to the Instant Client**. See [here](https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html#installing-cx-oracle-on-windows) for more detailed instructions
+ 1. The Oracle Client must be correctly installed on the machine. Note that you will need the 64-bit client for 64-bit Python, but the version typically installed by NIVA's Software Centre is 32-bit. If you need to install the 64-bit client without affecting any other Oracle clients already on the machine, download the **Instant Client Basic Lite Package** from [here](https://www.oracle.com/database/technologies/instant-client/winx64-64-downloads.html) and unzip it to a suitable location on the system (e.g. `C:\oracle\instantclient_19_12`). You can then **uncomment the line in `upload_uv_abs.bat` that temporarily sets the path to the Instant Client**. See [here](https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html#installing-cx-oracle-on-windows) for more detailed instructions. **Note:** On modern systems version 19 of the Instant Client is recommended, but some of NIVA's servers are old (running Windows Server 2008) and will instead require Instant Client version 11.2 (see e.g. [here](https://stackoverflow.com/a/58384040/505698))
  
- 2. Download and install **Mambaforge** for your system from [here](https://github.com/conda-forge/miniforge). Make a note of the install path for later (the default when installing for "all users" should be `C:\ProgramData\mambaforge`)
+ 2. Download and install **Mambaforge** for your system from [here](https://github.com/conda-forge/miniforge). Make a note of the install path for later (the default when installing for "all users" should be `C:/ProgramData/mambaforge`). **Note:** Some of NIVA's servers are too old to run Mambaforge. If you see errors such as `Failed to initialize Anaconda directories` during the installation, you will need to install an older version of conda/mamba instead. For NIVA machines running Windows Server 2008, installing Miniconda3-4.5.4-Windows-x86_64 from [here](https://repo.anaconda.com/miniconda/) seems to work. In this case, you will need to modify the path to Mamba in `environment.yml` (probably to `C:/ProgramData/Miniconda3`)
  
- 3. If Git is already installed on the system, clone the [resa_add_uv_abs repository](https://github.com/NIVANorge/resa_add_uv_abs). If Git is not installed, simply download the repository as a zip archive and extract it to a suitable location (Git will be installed in the following steps)
+ 3. If Git is not already installed on the system, follow the instructions [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git). Then clone the [resa_add_uv_abs repository](https://github.com/NIVANorge/resa_add_uv_abs) to a suitable location on the machine using `git clone https://github.com/NIVANorge/resa_add_uv_abs.git`
  
- 4. Open the **Mambaforge prompt** (`Programs > Miniforge3 > Miniforge prompt (mambaforge`) and `cd` into the `resa_add_uv_abs` folder created in step 2
+ 4. Open the **Mambaforge prompt** (`Programs > Miniforge3 > Miniforge prompt (mambaforge`) and `cd` into the `resa_add_uv_abs` folder created in step 2. Note that if you has to install Miniconda in step 2, you need to use the **Anaconda prompt** instead
  
- 5. Run `mamba env create -f environment.yml --force` to install the Python environment
+ 5. Run `mamba env create -f environment.yml --force` to install the Python environment (if you had to install Miniconda in step 2, you will first need to install Mamba using `conda install mamba`)
  
- 6. If Mambaforge was not installed in the default location in step 1, modify the part of the `upload_uv_abs.bat` that sets the path to Mamba to point to the correct location
+ 6. Double-check the paths in `upload_uv_abs.bat` are correct for your installation. For example, if Mambaforge was not installed in the default location in step 2, or if you installed Miniconda instead, modify `upload_uv_abs.bat` to use the correct location. Similarly, if you installed the Oracle Instant Client in step 1, uncomment the relevant line and ensure the path is correct
  
  7. Create a **Scheduled Task** to run `upload_uv_abs.bat` at the desired frequency
 
