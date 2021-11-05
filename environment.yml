@@ -4,7 +4,6 @@ channels:
   - nodefaults
 dependencies:
   - cx_Oracle
-  - git
   - numpy
   - pandas
   - premailer
