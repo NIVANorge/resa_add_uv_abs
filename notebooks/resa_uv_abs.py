@@ -8,24 +8,36 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 
-import cx_Oracle
-import numpy as np
 import pandas as pd
 import yagmail
 from sqlalchemy import create_engine
 
 
-def connect_to_nivabase():
+def connect_to_nivabase(auth_path=".auth"):
     """Connect to the NIVABASE.
+
+    The authentication file is plain text and should have the format
+
+            [DBAuth]
+            db_user = resa_username
+            db_pw = resa_password
+
     Args:
-        None.
+        auth_path: Str. Path to authentication file containing username and
+                   password for resa2.uvabs@gmail.com
 
     Returns:
         SQLAlchemy database engine.
     """
-    user = getpass.getpass(prompt="Username: ")
-    pw = getpass.getpass(prompt="Password: ")
-    conn_str = f"oracle+cx_oracle://{user}:{pw}@nivabase.niva.no:1521/nivabase"
+    # user = getpass.getpass(prompt="Username: ")
+    # pw = getpass.getpass(prompt="Password: ")
+    config = configparser.RawConfigParser()
+    config.read(auth_path)
+    username = config.get("DBAuth", "db_user")
+    password = config.get("DBAuth", "db_pw")
+    conn_str = (
+        f"oracle+cx_oracle://{username}:{password}@nivabase.niva.no:1521/nivabase"
+    )
 
     engine = create_engine(conn_str)
     conn = engine.connect()
@@ -49,20 +61,43 @@ def get_analysis_datetime(fpath):
     return dt_tm
 
 
-def get_dilution(serial_no, year):
+def get_dilution(serial_no, year, engine):
     """Get the dilution factor from Labware using the Labware text ID.
 
     Args:
         serial_no: Str. Zero-padded 5-digit Labware serial number.
                    e.g. the xxxxx part of 'NR-2019-xxxxx'
         year:      Int. Year in which analysis was run
+        engine:    Obj. Active database connection object with access to
+                   Nivabasen
 
     Returns:
         Int. Dilution factor for sample.
     """
     lw_txt_id = f"NR-{year}-{serial_no}"
 
-    return 1
+    sql = (
+        "SELECT s.text_id, "
+        "  r.numeric_entry "
+        "FROM labware.sample s, "
+        "  labware.result r "
+        "WHERE s.sample_number = r.sample_number "
+        "AND r.analysis        = 'FARGE_MANUELL' "
+        "AND r.status          = 'A' "
+        "AND r.name            = 'Fortynningsfaktor' "
+        "AND s.text_id         = :lw_txt_id"
+    )
+    df = pd.read_sql(sql, engine, params={"lw_txt_id": lw_txt_id})
+
+    if len(df) == 0:
+        msg = f"ERROR: Could not identify dilution factor for {lw_txt_id}."
+        raise ValueError(msg)
+    elif len(df) == 1:
+        dilution = df["numeric_entry"].iloc[0]
+        return int(dilution)
+    else:
+        msg = f"ERROR: Found multiple dilution factors for {lw_txt_id}."
+        raise ValueError(msg)
 
 
 def get_water_sample_id(serial_no, year, engine):
@@ -322,7 +357,7 @@ def send_email(to_list, subject, message, attach_list, auth_path=".auth"):
 
        The authentication file is plain text and should have the format
 
-            [Auth]
+            [EmailAuth]
             email_user = resa2.uvabs
             email_pw = password
 
@@ -339,8 +374,8 @@ def send_email(to_list, subject, message, attach_list, auth_path=".auth"):
     """
     config = configparser.RawConfigParser()
     config.read(auth_path)
-    username = config.get("Auth", "email_user")
-    password = config.get("Auth", "email_pw")
+    username = config.get("EmailAuth", "email_user")
+    password = config.get("EmailAuth", "email_pw")
 
     yag = yagmail.SMTP(username, password)
     yag.send(to=to_list, subject=subject, contents=message, attachments=attach_list)
@@ -351,7 +386,7 @@ def main(
     force_update=False,
     cuvette_len_cm=5,
     meth_id=10666,
-    log_fold=r"../logs/",
+    log_fold=r"../../logs/",
 ):
     """Main function for processing UV absorbance data."""
     log_date = datetime.today().strftime("%Y-%m-%d-%H-%M")
@@ -383,7 +418,7 @@ def main(
                 for fpath in flist:
                     serial_no = os.path.split(fpath)[1][:-3]
                     year = get_analysis_datetime(fpath).year
-                    dilution = get_dilution(serial_no, year)
+                    dilution = get_dilution(serial_no, year, engine)
                     ws_id = get_water_sample_id(serial_no, year, engine)
 
                     if ws_id is None:
