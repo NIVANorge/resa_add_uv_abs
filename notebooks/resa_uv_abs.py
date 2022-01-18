@@ -36,7 +36,7 @@ def connect_to_nivabase(auth_path=".auth"):
     username = config.get("DBAuth", "db_user")
     password = config.get("DBAuth", "db_pw")
     conn_str = (
-        f"oracle+cx_oracle://{username}:{password}@nivabase.niva.no:1521/nivabase"
+        f"oracle+cx_oracle://{username}:{password}@DBORA-NIVA-PROD01.NIVA.CORP:1555/NIVABPRD"
     )
 
     engine = create_engine(conn_str)
